@@ -6,15 +6,16 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
-pub(crate) use self::request::RpcRequest;
 pub use self::request::{
-    ArgumentFields, SessionSetArgs, TorrentAction, TorrentAddArgs, TorrentGetField, TorrentGetIds,
-    TorrentRenamePathArgs, TorrentSetArgs, TrackerList,
+    Args, ArgumentFields, BandwidthGroupGetArgs, Method, ParseMethodError, QueueMoveArgs,
+    RpcRequest, SessionSetArgs, TorrentAction, TorrentActionArgs, TorrentAddArgs, TorrentGetArgs,
+    TorrentGetField, TorrentGetFormat, TorrentGetIds, TorrentRemoveArgs, TorrentRenamePathArgs,
+    TorrentSetArgs, TorrentSetLocationArgs, TrackerList,
 };
 
 pub use self::response::{
     BandwidthGroups, BlocklistUpdate, ErrorType, FreeSpace, Nothing, PortTest, RpcResponse,
-    RpcResponseArgument, SessionGet, SessionStats, Torrent, TorrentAddedOrDuplicate,
+    RpcResponseArgument, SessionGet, SessionStats, Stats, Torrent, TorrentAddedOrDuplicate,
     TorrentRenamePath, TorrentStatus, Torrents, TrackerState,
 };
 
@@ -29,7 +30,7 @@ mod tests;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct BandwidthGroup {
     #[serde(rename = "honorsSessionLimits")]
@@ -47,9 +48,10 @@ pub struct BasicAuth {
     pub password: String,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Default, Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Encryption {
+    #[default]
     Preferred,
     Required,
     Tolerated,

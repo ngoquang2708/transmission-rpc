@@ -7,13 +7,13 @@ use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
 use chrono::serde::ts_seconds::deserialize as from_ts;
 use chrono::{DateTime, Utc};
 use serde::de::{Deserializer, Error as _};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_repr::*;
 
 use super::{BandwidthGroup, Encryption, Id, IdleMode, Priority, RatioMode};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct RpcResponse<T: RpcResponseArgument> {
     pub arguments: T,
     pub result: String,
@@ -24,9 +24,12 @@ impl<T: RpcResponseArgument> RpcResponse<T> {
         self.result == "success"
     }
 }
+
 pub trait RpcResponseArgument {}
 
-#[derive(Deserialize, Debug, Clone)]
+impl RpcResponseArgument for Value {}
+
+#[derive(Deserialize, Serialize, Default, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct SessionGet {
     // Fields without `#[serde(default)]` are required to deserialize.
@@ -148,7 +151,7 @@ pub struct SessionGet {
 }
 impl RpcResponseArgument for SessionGet {}
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStats {
     pub torrent_count: i32,
@@ -163,14 +166,14 @@ pub struct SessionStats {
 }
 impl RpcResponseArgument for SessionStats {}
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct BlocklistUpdate {
     pub blocklist_size: Option<i32>,
 }
 impl RpcResponseArgument for BlocklistUpdate {}
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct FreeSpace {
     pub path: String,
@@ -185,13 +188,15 @@ pub struct PortTest {
 }
 impl RpcResponseArgument for PortTest {}
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BandwidthGroups {
     pub group: Vec<BandwidthGroup>,
 }
 impl RpcResponseArgument for BandwidthGroups {}
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Deserialize_repr)]
+#[derive(
+    Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Deserialize_repr, Serialize_repr,
+)]
 #[repr(u8)]
 pub enum TorrentStatus {
     Stopped = 0,
@@ -203,7 +208,7 @@ pub enum TorrentStatus {
     Seeding = 6,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Deserialize_repr)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Deserialize_repr, Serialize_repr)]
 #[repr(u8)]
 pub enum ErrorType {
     Ok = 0,
@@ -212,7 +217,7 @@ pub enum ErrorType {
     LocalError = 3,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Torrent {
     #[serde(deserialize_with = "from_ts_option", default)]
@@ -378,7 +383,7 @@ impl Torrent {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
     pub files_added: i32,
@@ -388,7 +393,7 @@ pub struct Stats {
     pub session_count: Option<i32>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Torrents<T> {
     pub torrents: Vec<T>,
     /// Populated only by `torrent-get` calls with `ids = "recently-active"`.
@@ -398,7 +403,7 @@ pub struct Torrents<T> {
 }
 impl RpcResponseArgument for Torrents<Torrent> {}
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Trackers {
     pub id: i32,
     pub announce: String,
@@ -411,7 +416,7 @@ pub struct Trackers {
     pub tier: usize,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct File {
     /// "the total size of the file"
@@ -435,7 +440,7 @@ pub struct File {
     pub end_piece: Option<u64>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FileStat {
     pub bytes_completed: i64,
@@ -443,7 +448,7 @@ pub struct FileStat {
     pub priority: Priority,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Peer {
     // FIXME? serde doesn't like simplified ipv6 addresses
@@ -467,7 +472,7 @@ pub struct Peer {
     pub rate_to_peer: u64,   // (B/s)
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PeersFrom {
     pub from_cache: u16,
@@ -479,7 +484,7 @@ pub struct PeersFrom {
     pub from_tracker: u16,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackerStat {
     pub announce_state: TrackerState,
@@ -521,7 +526,7 @@ pub struct TrackerStat {
     pub tier: usize,
 }
 
-#[derive(Deserialize_repr, Debug, Clone)]
+#[derive(Deserialize_repr, Serialize_repr, Debug, Clone)]
 #[repr(i8)]
 pub enum TrackerState {
     Inactive = 0,
@@ -530,11 +535,12 @@ pub enum TrackerState {
     Active = 3,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Nothing {}
 impl RpcResponseArgument for Nothing {}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum TorrentAddedOrDuplicate {
     TorrentDuplicate(Torrent),
     TorrentAdded(Torrent),
@@ -560,7 +566,7 @@ impl<'de> Deserialize<'de> for TorrentAddedOrDuplicate {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TorrentRenamePath {
     pub path: Option<String>,
     pub name: Option<String>,
