@@ -790,6 +790,8 @@ pub enum TorrentGetField {
     StartDate,
     Status,
     TorrentFile,
+    TotalSeedersFromTrackers,
+    TotalLeechersFromTrackers,
     TotalSize,
     Trackers,
     TrackerList,

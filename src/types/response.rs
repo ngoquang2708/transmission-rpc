@@ -300,6 +300,8 @@ pub struct Torrent {
     pub start_date: Option<DateTime<Utc>>,
     pub status: Option<TorrentStatus>,
     pub torrent_file: Option<String>,
+    pub total_seeders_from_trackers: Option<i64>,
+    pub total_leechers_from_trackers: Option<i64>,
     pub total_size: Option<i64>,
     pub trackers: Option<Vec<Trackers>>,
     pub tracker_list: Option<String>,
