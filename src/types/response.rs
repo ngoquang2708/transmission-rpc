@@ -3,15 +3,14 @@
 
 use std::{collections::HashMap, net::IpAddr};
 
-use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
-use chrono::serde::ts_seconds::deserialize as from_ts;
+use super::{BandwidthGroup, Encryption, Id, IdleMode, Priority, RatioMode};
+use crate::serde::{Bitfield, BoolsFromBoolsOrInts, Timestamp};
 use chrono::{DateTime, Utc};
-use serde::de::{Deserializer, Error as _};
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_repr::*;
-
-use super::{BandwidthGroup, Encryption, Id, IdleMode, Priority, RatioMode};
+use serde_with::serde_as;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RpcResponse<T: RpcResponseArgument> {
@@ -217,12 +216,13 @@ pub enum ErrorType {
     LocalError = 3,
 }
 
+#[serde_as]
 #[derive(Deserialize, Serialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Torrent {
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub activity_date: Option<DateTime<Utc>>,
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub added_date: Option<DateTime<Utc>>,
     /// "An array of `pieceCount` numbers representing the number of connected peers that have each
     /// piece, or -1 if we already have the piece ourselves."
@@ -233,16 +233,16 @@ pub struct Torrent {
     pub comment: Option<String>,
     pub corrupt_ever: Option<u64>,
     pub creator: Option<String>,
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub date_created: Option<DateTime<Utc>>,
     pub desired_available: Option<u64>,
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub done_date: Option<DateTime<Utc>>,
     pub download_dir: Option<String>,
     pub downloaded_ever: Option<u64>,
     pub download_limit: Option<u64>,
     pub download_limited: Option<bool>,
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub edit_date: Option<DateTime<Utc>>,
     pub error: Option<ErrorType>,
     pub error_string: Option<String>,
@@ -261,7 +261,7 @@ pub struct Torrent {
     pub left_until_done: Option<i64>,
     pub magnet_link: Option<String>,
     /// [`DateTime::UNIX_EPOCH`] if never manually announced.
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub manual_announce_time: Option<DateTime<Utc>>,
     pub max_connected_peers: Option<u16>,
     pub metadata_percent_complete: Option<f32>,
@@ -278,7 +278,7 @@ pub struct Torrent {
     /// "A bitfield holding `pieceCount` flags which are set to 'true' if we have the piece
     /// matching that position. JSON doesn't allow raw binary data, so this is a base64-encoded
     /// string."
-    #[serde(deserialize_with = "from_bitfield_option", default)]
+    #[serde_as(as = "Option<Bitfield>")]
     pub pieces: Option<Vec<u8>>,
     pub piece_count: Option<u64>,
     pub piece_size: Option<u64>,
@@ -296,7 +296,7 @@ pub struct Torrent {
     pub seed_ratio_mode: Option<RatioMode>,
     pub sequential_download: Option<bool>,
     pub size_when_done: Option<i64>,
-    #[serde(deserialize_with = "from_ts_option", default)]
+    #[serde_as(as = "Option<Timestamp>")]
     pub start_date: Option<DateTime<Utc>>,
     pub status: Option<TorrentStatus>,
     pub torrent_file: Option<String>,
@@ -315,7 +315,8 @@ pub struct Torrent {
     /// (`true`) or not (`false`).
     ///
     /// [`files`]: Torrent::files
-    #[serde(deserialize_with = "from_arr_bool_option", default)]
+    #[serde_as(as = "Option<BoolsFromBoolsOrInts>")]
+    #[serde(default)]
     pub wanted: Option<Vec<bool>>,
     pub webseeds: Option<Vec<String>>,
     pub webseeds_sending_to_us: Option<u16>,
@@ -323,56 +324,6 @@ pub struct Torrent {
     pub file_stats: Option<Vec<FileStat>>,
     #[serde(rename = "file-count")]
     pub file_count: Option<usize>,
-}
-
-fn from_ts_option<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let ts: i64 = Deserialize::deserialize(deserializer)?;
-    // The transmission rpc server responds with 0 or -1 (in the case of manualAnnounceTime) when
-    // the date is unset or invalid.
-    // Consolidate any response <= 0 as UNIX_EPOCH to denote these cases.
-    if ts <= 0 {
-        return Ok(Some(DateTime::UNIX_EPOCH));
-    }
-    Ok(DateTime::<Utc>::from_timestamp(ts, 0))
-}
-
-/// Attempts to deserialize a [`base64`]-encoded string into a `Vec<u8>`.
-fn from_bitfield_option<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let encoded: &str = Deserialize::deserialize(deserializer)?;
-    let bitfield = base64.decode(encoded).map_err(D::Error::custom)?;
-    Ok(Some(bitfield))
-}
-
-/// Attempts to deserialize an array of bools or ints (`0` or `1`) into a `Vec<bool>`, treating `0`
-/// as false and `1` as true.
-fn from_arr_bool_option<'de, D>(deserializer: D) -> Result<Option<Vec<bool>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let unexpected = || D::Error::custom("unexpected type");
-
-    let wanted = match Deserialize::deserialize(deserializer)? {
-        Value::Array(arr) => arr
-            .into_iter()
-            .map(|val| match val {
-                // transmission 5.0.0+ returns an array of booleans.
-                Value::Bool(b) => Ok(b),
-                // transmission 4.x.x and below returns an array of ints (1 true, 0 false).
-                Value::Number(num) => num.as_i64().map(|n| n == 1).ok_or_else(unexpected),
-                // rpc server misbehaving (got an unexpected type).
-                _ => Err(unexpected()),
-            })
-            .collect::<Result<Vec<_>, _>>()?,
-        // `wanted` should be an array.
-        _ => Err(unexpected())?,
-    };
-    Ok(Some(wanted))
 }
 
 impl Torrent {
@@ -486,6 +437,7 @@ pub struct PeersFrom {
     pub from_tracker: u16,
 }
 
+#[serde_as]
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackerStat {
@@ -499,23 +451,23 @@ pub struct TrackerStat {
     pub is_backup: bool,
     pub last_announce_peer_count: i64,
     pub last_announce_result: String,
-    #[serde(deserialize_with = "from_ts")]
+    #[serde_as(as = "Timestamp")]
     pub last_announce_start_time: DateTime<Utc>,
     pub last_announce_succeeded: bool,
-    #[serde(deserialize_with = "from_ts")]
+    #[serde_as(as = "Timestamp")]
     pub last_announce_time: DateTime<Utc>,
     pub last_announce_timed_out: bool,
     pub last_scrape_result: String,
-    #[serde(deserialize_with = "from_ts")]
+    #[serde_as(as = "Timestamp")]
     pub last_scrape_start_time: DateTime<Utc>,
     pub last_scrape_succeeded: bool,
-    #[serde(deserialize_with = "from_ts")]
+    #[serde_as(as = "Timestamp")]
     pub last_scrape_time: DateTime<Utc>,
     pub last_scrape_timed_out: bool,
     pub leecher_count: i64,
-    #[serde(deserialize_with = "from_ts")]
+    #[serde_as(as = "Timestamp")]
     pub next_announce_time: DateTime<Utc>,
-    #[serde(deserialize_with = "from_ts")]
+    #[serde_as(as = "Timestamp")]
     pub next_scrape_time: DateTime<Utc>,
     pub scrape_state: TrackerState,
     pub scrape: String,
@@ -552,7 +504,7 @@ pub enum TorrentAddedOrDuplicate {
 impl RpcResponseArgument for TorrentAddedOrDuplicate {}
 
 impl<'de> Deserialize<'de> for TorrentAddedOrDuplicate {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, <D as Deserializer<'de>>::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
