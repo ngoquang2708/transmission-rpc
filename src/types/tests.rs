@@ -7,9 +7,7 @@ use chrono::DateTime;
 use serde_json;
 
 use crate::types::response::{TorrentStatus, TrackerState};
-use crate::types::{
-    ErrorType, Id, IdleMode, Priority, RatioMode, Result, RpcResponse, Torrent, Torrents,
-};
+use crate::types::*;
 
 type TorrentGetResp = RpcResponse<Torrents<Torrent>>;
 
@@ -3936,4 +3934,12 @@ fn test_session_get_encryption_variants() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_sched_day_serde() {
+    let days = SchedDay::Monday | SchedDay::Sunday;
+    let ser = serde_json::to_value(&days).unwrap();
+    let de: SchedDay = serde_json::from_value(ser).unwrap();
+    assert_eq!(de, days);
 }

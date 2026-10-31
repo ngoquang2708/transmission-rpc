@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, net::IpAddr};
 
-use super::{BandwidthGroup, Encryption, Id, IdleMode, Priority, RatioMode};
+use super::{BandwidthGroup, Encryption, Id, IdleMode, Priority, RatioMode, SchedDay};
 use crate::serde::{Bitfield, BoolsFromBoolsOrInts, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::de::Deserializer;
@@ -45,7 +45,7 @@ pub struct SessionGet {
     #[serde(default)]
     pub alt_speed_time_begin: i32,
     #[serde(default)]
-    pub alt_speed_time_day: i32,
+    pub alt_speed_time_day: SchedDay,
     #[serde(default)]
     pub alt_speed_time_enabled: bool,
     #[serde(default)]

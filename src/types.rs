@@ -3,7 +3,8 @@
 
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
+use bitflags::bitflags;
+use serde::{de, Deserialize, Serialize, Serializer};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 pub use self::request::{
@@ -92,4 +93,87 @@ pub enum RatioMode {
     Global = 0,
     Single = 1,
     Unlimited = 2,
+}
+
+bitflags! {
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    pub struct SchedDay : u8 {
+        const Sunday    = 1 << 0;
+        const Monday    = 1 << 1;
+        const Tuesday   = 1 << 2;
+        const Wednesday = 1 << 3;
+        const Thursday  = 1 << 4;
+        const Friday    = 1 << 5;
+        const Saturday  = 1 << 6;
+
+        const Weekday = Self::Monday.bits() | Self::Tuesday.bits() | Self::Wednesday.bits() | Self::Thursday.bits() | Self::Friday.bits();
+        const Weekend = Self::Sunday.bits() | Self::Saturday.bits();
+    }
+}
+
+impl Default for SchedDay {
+    fn default() -> Self {
+        Self::Weekend
+    }
+}
+
+impl Serialize for SchedDay {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(self.bits())
+    }
+}
+
+impl<'de> Deserialize<'de> for SchedDay {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct Visitor;
+        impl de::Visitor<'_> for Visitor {
+            type Value = SchedDay;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("tr_sched_day enum as number")
+            }
+            fn visit_i8<E>(self, v: i8) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_u8(v as _)
+            }
+            fn visit_i32<E>(self, v: i32) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_u8(v as _)
+            }
+            fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_u8(v as _)
+            }
+            fn visit_u8<E>(self, v: u8) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Self::Value::from_bits_retain(v))
+            }
+            fn visit_u32<E>(self, v: u32) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_u8(v as _)
+            }
+            fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_u8(v as _)
+            }
+        }
+        deserializer.deserialize_any(Visitor)
+    }
 }
